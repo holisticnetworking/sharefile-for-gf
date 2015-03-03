@@ -89,6 +89,8 @@ class ShareFile {
 			if ($token) {
 				$this->get_root($token, TRUE);
 				print_r($token);
+			} else {
+				echo '<h1>No dice, dude.</h1>';
 			}
 		else:
 			die( 'All arguments must be passed for ShareFile to work.' );
