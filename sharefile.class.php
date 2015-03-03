@@ -88,7 +88,7 @@ class ShareFile {
 			$token					= $this->authenticate();
 			if ($token) {
 				$this->get_root($token, TRUE);
-				die( print_r($token) );
+				print_r($token);
 			}
 		else:
 			die( 'All arguments must be passed for ShareFile to work.' );
