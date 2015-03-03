@@ -183,7 +183,7 @@ if (class_exists("GFForms")) {
 		*/
 		public function after_submission( $entry, $form ) {
 			// Require the ShareFile API Class:
-			require_once( plugin_dir_path() . 'sharefile.class.php' );
+			require_once( plugin_dir_path( __FILE__ ) . 'sharefile.class.php' );
 			// Our API settings:
 			$addon_settings = $this->get_plugin_settings();
 			if (!$addon_settings) {
@@ -191,7 +191,7 @@ if (class_exists("GFForms")) {
 			}
 			// Initialize the ShareFile Object:
 			$sf		= new ShareFile(
-				$addon_settings['hostname'], 
+				$addon_settings['hostname'],  
 				$addon_settings['client_id'], 
 				$addon_settings['client_secret'], 
 				$addon_settings['username'], 
