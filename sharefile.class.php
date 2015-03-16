@@ -69,6 +69,7 @@
  */
 
 class ShareFile {
+	var $authtype		= "password";
 	var $hostname		= "myaccount.sharefile.com";
 	var $username		= "my@user.name";
 	var $password		= "mypassword";
@@ -78,13 +79,15 @@ class ShareFile {
 	/*
 	 * Saddle up and ride:
 	 */
-	public function ShareFile( $hostname=null, $client_id=null, $client_secret=null, $username=null, $password=null ) {
+	public function ShareFile( $hostname=null, $client_id=null, $client_secret=null, $username=null, $password=null, $authtype="password" ) {
 		if( $hostname && $client_id && $client_secret && $username && $password ) :
+			$this->authtype			= $authtype;
 			$this->hostname			= $hostname;
 			$this->client_id		= $client_id;
 			$this->client_secret	= $client_secret;
 			$this->username			= $username;
 			$this->password			= $password;
+			echo "Username: " . $this->username . '<br />';
 			$token					= $this->authenticate();
 			if ($token) {
 				$this->get_root($token, TRUE);
@@ -112,13 +115,14 @@ class ShareFile {
 		echo "POST ".$uri."\n";
  
 		$body_data = array(
-			"grant_type"		=>"password", 
-			"client_id"			=>$this->client_id,
-			"client_secret"		=>$this->client_secret, 
-			"username"			=>$this->username, 
-			"password"			=>$this->password
+			"grant_type"		=>	$this->authtype, 
+			"client_id"			=>	$this->client_id,
+			"client_secret"		=>	$this->client_secret, 
+			"username"			=>	$this->username, 
+			"password"			=>	$this->password 
 		);
 		$data = http_build_query($body_data);
+		print_r( $data );
 	 
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $uri);
@@ -129,15 +133,24 @@ class ShareFile {
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
 		curl_setopt($ch, CURLOPT_POST, TRUE);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type:application/x-www-form-urlencoded'));
+		curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+		curl_setopt($ch, CURLINFO_HEADER_OUT, true);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+			'Cache-Control:no-cache, no-store',
+			'Content-Type:application/x-www-form-urlencoded'
+			)
+		);
  
 		$curl_response		= curl_exec ($ch);
  
 		$http_code			= curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		$curl_error_number	= curl_errno($ch);
 		$curl_error			= curl_error($ch);
+		
+		$headerSent = curl_getinfo($ch, CURLINFO_HEADER_OUT );
  
-		//echo $curl_response."\n"; // output entire response
+		echo "<pre>" . $curl_response . "</pre>\n"; // output entire response
+		echo "<pre>" . $headerSent . "</pre>\n"; // output entire response
 		echo $http_code."\n"; // output http status code
 	 
 		curl_close ($ch);
