@@ -1,4 +1,5 @@
-== ShareFile for Gravity Forms ==
+ShareFile for Gravity Forms
+===========================
 Contributors: DragonFlyEye
 Donate link: https://holisticnetworking.nt/donate/
 Tags: sharefile,hippa,upload,
