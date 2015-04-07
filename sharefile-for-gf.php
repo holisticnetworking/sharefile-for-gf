@@ -13,7 +13,7 @@ License: GPLv2 or later
 */
 if (class_exists("GFForms")) {
 	GFForms::include_addon_framework();
-    class ShareFile extends GFAddOn {
+    class WPShareFile extends GFAddOn {
         protected $_version = "0.1b"; 
         protected $_min_gravityforms_version = "1.9.1.1";
         protected $_slug = "sharefile";
@@ -43,8 +43,13 @@ if (class_exists("GFForms")) {
 		function upload_input($input, $field, $value, $lead_id, $form_id){
 			if($field["type"] == "sharefile"){
 				$input	= '<div class="upload_container">';
-				$input	.= '<input type="file" name="sharefile[File]" id="sharefile-file" />';
-				$input	.= '<input type="hidden" name="sharefile[Order]" id="sharefile-order" />';
+				$input	.= sprintf(
+					'<input type="file" name="input_%s" id="input_%s_%s" value="%s" />',
+					$field['id'],
+					$form_id,
+					$field['id'],
+					$value
+				);
 				$input	.= '</div>';
 			}
 			return $input;
@@ -71,12 +76,6 @@ if (class_exists("GFForms")) {
 		
 		function frontend_scripts( $form ) {
 			echo '<script type="text/javascript">jQuery(document).ready(function($){ $( "input", ".sgl-readonly" ).attr( "readonly", true ); });</script>';
-			/* foreach( $form['fields'] as &$field ) :
-				if( $field["type"] == 'sharefile' ) :
-			 		print_r($field);
-			 		//
-			 	endif;
-			endforeach; */
 			return $form;
 		}
 		
@@ -122,6 +121,12 @@ if (class_exists("GFForms")) {
 							"name"    => "password",
 							"tooltip" => __("The password associated with this account", "gravityformsaggregator"),
 							"label"   => __("Password", "gravityformsaggregator"),
+							"type"    => "text"
+						),
+						array(
+							"name"    => "folder-id",
+							"tooltip" => __("Hover over a folder in ShareFile to get it's ID. This will be the value used in this field.", "gravityformsaggregator"),
+							"label"   => __("SF Folder ID", "gravityformsaggregator"),
 							"type"    => "text"
 						)
 					)
@@ -182,13 +187,17 @@ if (class_exists("GFForms")) {
 		// Showtime. Now we upload
 		*/
 		public function after_submission( $entry, $form ) {
+			$upload		= '';
+			$order		= '';
 			// Require the ShareFile API Class:
 			require_once( plugin_dir_path( __FILE__ ) . 'sharefile.class.php' );
+			
 			// Our API settings:
 			$addon_settings = $this->get_plugin_settings();
 			if (!$addon_settings) {
 				return;
 			}
+			
 			// Initialize the ShareFile Object:
 			$sf		= new ShareFile(
 				$addon_settings['hostname'],  
@@ -196,7 +205,32 @@ if (class_exists("GFForms")) {
 				$addon_settings['client_secret'], 
 				$addon_settings['username'], 
 				$addon_settings['password']
-			);	
+			);
+			
+			// Get form field:
+			foreach( $form['fields'] as $field ) :
+				if( stristr( $field['label'], 'Prescription' ) ) :
+					$upload	= $field['id'];
+				elseif( stristr( $field['label'], 'Order' ) ) :
+					$order	= $field['id'];
+				endif;			
+			endforeach;
+			
+			// Get and rename file:
+			if( !$order || !$upload ) :
+				error_log( 'Order: ' . $order . ' Upload: ' . $upload );
+				return;
+			endif;
+			$f		= explode( 'uploads', $entry[$upload] );
+			$updir	= wp_upload_dir();
+			$fname	= $updir['basedir'] . $f[1];
+			$prefix	= explode( '/', $fname );
+			$ext	= explode( '.', array_pop( $prefix ) );
+			$nname	= implode( '/', $prefix ) . '/' . $entry[$order] . '.' . $ext[1];
+			rename( $fname, $nname );
+			
+			// Upload it!!
+			$sf->upload_file( $addon_settings['folder-id'], $nname );
 		}
 		
 		function init() {
@@ -206,12 +240,13 @@ if (class_exists("GFForms")) {
 			add_filter( "gform_field_input", array( $this, "upload_input" ), 10, 5 );
 			add_action( "gform_editor_js", array( $this, "editor_js" ) );
 			add_filter( "gform_pre_render", array( $this, "frontend_scripts" ) );
+			add_action( "gform_after_submission", array( $this, "after_submission" ), 10, 2 );
 		}
 		
 		function init_frontend() {
 			
 		}
     }
-    $fs	= new ShareFile;
+    $fs	= new WPShareFile;
 }
 ?>

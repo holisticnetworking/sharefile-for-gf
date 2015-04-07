@@ -75,6 +75,8 @@ class ShareFile {
 	var $password		= "mypassword";
 	var $client_id		= "my-client-id";
 	var $client_secret	= "my-client-secret";
+	public $token		= null;
+	public $froot		= null;
  
 	/*
 	 * Saddle up and ride:
@@ -87,15 +89,14 @@ class ShareFile {
 			$this->client_secret	= $client_secret;
 			$this->username			= $username;
 			$this->password			= $password;
-			echo "Username: " . $this->username . '<br />';
-			$token					= $this->authenticate();
-			if ($token) {
-				$this->get_root($token, TRUE);
-				print_r($token);
-			} else {
-				echo '<h1>No dice, dude.</h1>';
-			}
-		else:
+			$this->authenticate();
+			if ( $this->token ) :
+				$this->get_root( $this->token, TRUE );
+			else :
+				error_log( 'Unable to login' );
+				return false;
+			endif;
+		else :
 			die( 'All arguments must be passed for ShareFile to work.' );
 		endif;
 	}
@@ -111,8 +112,8 @@ class ShareFile {
 	 * @return json token 
 	 */
 	function authenticate() {
-		$uri = "https://".$this->hostname."/oauth/token";
-		echo "POST ".$uri."\n";
+		$token	= false;
+		$uri = "https://" . $this->hostname . "/oauth/token";
  
 		$body_data = array(
 			"grant_type"		=>	$this->authtype, 
@@ -122,7 +123,6 @@ class ShareFile {
 			"password"			=>	$this->password 
 		);
 		$data = http_build_query($body_data);
-		print_r( $data );
 	 
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $uri);
@@ -136,12 +136,11 @@ class ShareFile {
 		curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 		curl_setopt($ch, CURLINFO_HEADER_OUT, true);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-			'Cache-Control:no-cache, no-store',
-			'Content-Type:application/x-www-form-urlencoded'
+			'Cache-Control:no-cache, no-store'
 			)
 		);
  
-		$curl_response		= curl_exec ($ch);
+		$curl_response		= curl_exec($ch);
  
 		$http_code			= curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		$curl_error_number	= curl_errno($ch);
@@ -149,17 +148,14 @@ class ShareFile {
 		
 		$headerSent = curl_getinfo($ch, CURLINFO_HEADER_OUT );
  
-		echo "<pre>" . $curl_response . "</pre>\n"; // output entire response
-		echo "<pre>" . $headerSent . "</pre>\n"; // output entire response
-		echo $http_code."\n"; // output http status code
-	 
 		curl_close ($ch);
 		$token = NULL;
 		if ($http_code == 200) {
 			$token = json_decode($curl_response);
-			//print_r($token); // print entire token object
+		} else {
+			error_log( 'HTTP Code: ' . $http_code );
 		}
-		return $token;
+		$this->token	= $token;
 	}
  
 	function get_authorization_header($token) {
@@ -179,13 +175,13 @@ class ShareFile {
 	 * @param boolean $get_children - retrieve Children Items if True, default is FALSE
 	 */
 	function get_root($token, $get_children=FALSE) {
-		$uri = "https://".get_hostname($token)."/sf/v3/Items";
+		$uri = "https://" . $this->get_hostname($token) . "/sf/v3/Items";
 		if ($get_children == TRUE) {
 			$uri .= "?\$expand=Children";
 		}
-		echo "GET ".$uri."\n";
+		error_log( "GET ".$uri."\n" );
  
-		$headers = get_authorization_header($token);
+		$headers = $this->get_authorization_header($token);
 	 
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $uri);
@@ -196,25 +192,15 @@ class ShareFile {
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
  
-		$curl_response = curl_exec ($ch);
+		$curl_response = curl_exec($ch);
  
 		$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		$curl_error_number = curl_errno($ch);
 		$curl_error = curl_error($ch);
- 
-		//echo $curl_response."\n"; // output entire response
-		echo $http_code."\n"; // output http status code
 	 
-		curl_close ($ch);
+		curl_close($ch);
  
-		$root = json_decode($curl_response);
-		//print_r($root); // print entire json response
-		echo $root->Id." ".$root->CreationDate." ".$root->Name."\n";
-		if (property_exists($root, "Children")) {
-			foreach($root->Children as $child) {
-				echo $child->Id." ".$child->CreationDate." ".$child->Name."\n";
-			}
-		}
+		$this->froot = $curl_response;
 	}
  
 	/**
@@ -225,7 +211,7 @@ class ShareFile {
 	 */
 	function get_item_by_id($token, $item_id) {
 		$uri = "https://".get_hostname($token)."/sf/v3/Items(".$item_id.")";
-		echo "GET ".$uri."\n";
+		// echo "GET ".$uri."\n";
  
 		$headers = get_authorization_header($token);
  
@@ -245,13 +231,11 @@ class ShareFile {
 		$curl_error = curl_error($ch);
  
 		//echo $curl_response."\n"; // output entire response
-		echo $http_code."\n"; // output http status code
+		// echo $http_code."\n"; // output http status code
 	 
 		curl_close ($ch);
  
 		$root = json_decode($curl_response);
-		//print_r($root); // print entire json response
-		echo $root->Id." ".$root->CreationDate." ".$root->Name."\n";
 	}
  
 	/**
@@ -267,7 +251,7 @@ class ShareFile {
 	 */
 	function get_folder_with_query_parameters($token, $item_id) {
 		$uri = "https://".get_hostname($token)."/sf/v3/Items(".$item_id.")?\$expand=Children&\$select=Id,Name,Children/Id,Children/Name,Children/CreationDate";
-		echo "GET ".$uri."\n";
+		// echo "GET ".$uri."\n";
  
 		$headers = get_authorization_header($token);
  
@@ -287,18 +271,18 @@ class ShareFile {
 		$curl_error = curl_error($ch);
  
 		//echo $curl_response."\n"; // output entire response
-		echo $http_code."\n"; // output http status code
+		// echo $http_code."\n"; // output http status code
  
 		curl_close ($ch);
  
 		$root = json_decode($curl_response);
-		//print_r($root); // print entire json response
+		
 	 
 		// only Id, Name are available here, because thats all that was requested
-		echo $root->Id." ".$root->Name." "."\n";
+		// echo $root->Id." ".$root->Name." "."\n";
 		if (property_exists($root, "Children")) {
 			foreach($root->Children as $child) {
-				echo $child->Id." ".$child->CreationDate." ".$child->Name."\n";
+				// echo $child->Id." ".$child->CreationDate." ".$child->Name."\n";
 			}
 		}
 	}
@@ -313,14 +297,13 @@ class ShareFile {
 	 */
 	function create_folder($token, $parent_id, $name, $description) {
 		$uri = "https://".get_hostname($token)."/sf/v3/Items(".$parent_id.")/Folder";
-		echo "POST ".$uri."\n";
+		// echo "POST ".$uri."\n";
  
 		$folder = array("Name"=>$name, "Description"=>$description);
 		$data = json_encode($folder);
  
 		$headers = get_authorization_header($token);
 		$headers[] = "Content-Type: application/json";
-		print_r($headers);
 	 
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $uri);
@@ -340,14 +323,12 @@ class ShareFile {
 		$curl_error = curl_error($ch);
  
 		//echo $curl_response."\n"; // output entire response
-		echo $http_code."\n"; // output http status code
+		// echo $http_code."\n"; // output http status code
 	 
 		curl_close ($ch);
  
 		if ($http_code == 200) {
 			$item = json_decode($curl_response);
-			print_r($item); // print entire new item object
-			echo "Created Folder: ".$item->Id."\n";
 		}
 	}
  
@@ -361,7 +342,7 @@ class ShareFile {
 	 */
 	function update_item($token, $item_id, $name, $description) {
 		$uri = "https://".get_hostname($token)."/sf/v3/Items(".$item_id.")";
-		echo "PATCH ".$uri."\n";
+		// echo "PATCH ".$uri."\n";
  
 		$item = array("Name"=>$name, "Description"=>$description);
 		$data = json_encode($item);
@@ -387,15 +368,13 @@ class ShareFile {
 		$curl_error_number = curl_errno($ch);
 		$curl_error = curl_error($ch);
  
-		//echo $curl_response."\n"; // output entire response
-		echo $http_code."\n"; // output http status code
+		// echo $curl_response."\n"; // output entire response
+		// echo $http_code."\n"; // output http status code
 	 
 		curl_close ($ch);
  
 		if ($http_code == 200) {
 			$updated_item = json_decode($curl_response);
-			print_r($updated_item); // print entire new item object
-			echo "Updated Folder: ".$updated_item->Id."\n";
 		}
 	}
  
@@ -406,10 +385,10 @@ class ShareFile {
 	 * @param string $item_id - the id of the item to delete 
 	 */
 	function delete_item($token, $item_id) {
-		$uri = "https://".get_hostname($token)."/sf/v3/Items(".$item_id.")";
-		echo "DELETE ".$uri."\n";
+		$uri = "https://" . $this->get_hostname($token) . "/sf/v3/Items(" . $item_id . ")";
+		// echo "DELETE ".$uri."\n";
  
-		$headers = get_authorization_header($token);
+		$headers = $this->get_authorization_header($token);
  
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $uri);
@@ -427,12 +406,12 @@ class ShareFile {
 		$curl_error_number = curl_errno($ch);
 		$curl_error = curl_error($ch);
  
-		echo $http_code."\n";
+		// echo $http_code."\n";
  
 		curl_close ($ch);
  
 		if ($http_code == 204) {
-			echo "Deleted Item\n";
+			// echo "Deleted Item\n";
 		}
 	}
  
@@ -444,12 +423,12 @@ class ShareFile {
 	 * @param string $local_path - where to download the item to, like "c:\\path\\to\\the.file"
 	 */
 	function download_item($token, $item_id, $local_path) {
-		$uri = "https://".get_hostname($token)."/sf/v3/Items(".$item_id.")/Download";
-		echo "GET ".$uri."\n";
+		$uri = "https://" . $this->get_hostname($token) . "/sf/v3/Items(" . $item_id . ")/Download";
+		// echo "GET ".$uri."\n";
 	 
 		$fp = fopen($local_path, 'w');
  
-		$headers = get_authorization_header($token);
+		$headers = $this->get_authorization_header($token);
  
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $uri);
@@ -466,7 +445,7 @@ class ShareFile {
 		$curl_error_number = curl_errno($ch);
 		$curl_error = curl_error($ch);
  
-		echo $http_code."\n";
+		// echo $http_code."\n";
  
 		curl_close($ch);
 		fclose($fp);
@@ -479,11 +458,11 @@ class ShareFile {
 	 * @param string $folder_id - where to upload the file
 	 * @param string $local_path - the full path of the file to upload, like "c:\\path\\to\\file.name"
 	 */
-	function upload_file($token, $folder_id, $local_path) {
-		$uri = "https://".get_hostname($token)."/sf/v3/Items(".$folder_id.")/Upload";
-		echo "GET ".$uri."\n";
+	function upload_file( $folder_id, $local_path ) {
+		$uri = "https://" . $this->get_hostname( $this->token ) . "/sf/v3/Items(" . $folder_id . ")/Upload";
+		error_log( "GET " . $uri . "\n" );
  
-		$headers = get_authorization_header($token);
+		$headers = $this->get_authorization_header($this->token);
  
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $uri);
@@ -503,7 +482,9 @@ class ShareFile {
 		$upload_config = json_decode($curl_response);
  
 		if ($http_code == 200) {
-			$post["File1"] = new CurlFile($local_path);
+			$fname	= explode( '/', $local_path );
+			$post['File1']	= curl_file_create( $local_path, 'image/png', $fname[count($fname)-1] );
+			// $post["File1"] = new CURLFile($local_path, 'image/png');
 			curl_setopt ($ch, CURLOPT_URL, $upload_config->ChunkUri);
 			curl_setopt ($ch, CURLOPT_POST, true);
 			curl_setopt ($ch, CURLOPT_POSTFIELDS, $post);
@@ -512,9 +493,8 @@ class ShareFile {
 			curl_setopt ($ch, CURLOPT_RETURNTRANSFER, true);
 			curl_setopt ($ch, CURLOPT_HEADER, true);
  
-			$upload_response = curl_exec ($ch);
- 
-			echo $upload_response."\n";
+			$upload_response = curl_exec($ch);
+ 			error_log( print_r( $upload_response, true ) );
 		}
 		curl_close ($ch);
 	}
@@ -525,10 +505,10 @@ class ShareFile {
 	 * @param string $token - json token acquired from authenticate function
 	 */
 	function get_clients($token) {
-		$uri = "https://".get_hostname($token)."/sf/v3/Accounts/GetClients";
-		echo "GET ".$uri."\n";
+		$uri = "https://" . $this->get_hostname( $token ) . "/sf/v3/Accounts/GetClients";
+		// echo "GET ".$uri."\n";
 	 
-		$headers = get_authorization_header($token);
+		$headers = $this->get_authorization_header($token);
 	 
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $uri);
@@ -545,16 +525,15 @@ class ShareFile {
 		$curl_error_number = curl_errno($ch);
 		$curl_error = curl_error($ch);
 	 
-		//echo $curl_response."\n"; // output entire response
-		echo $http_code."\n"; // output http status code
+		// echo $curl_response."\n"; // output entire response
+		// echo $http_code."\n"; // output http status code
 	 
 		curl_close ($ch);
 	 
 		$clients = json_decode($curl_response);
-		//print_r($response); // print entire json response
 		if ($clients->value != NULL) {
 			foreach($clients->value as $client) {
-				echo $client->Id." ".$client->Email."\n";
+				// echo $client->Id." ".$client->Email."\n";
 			}
 		}
 	}
@@ -575,15 +554,15 @@ class ShareFile {
 			$email, $firstname, $lastname, $company,
 			$clientpassword, $canresetpassword, $canviewmysettings) {
 		 
-		$uri = "https://".get_hostname($token)."/sf/v3/Users";
-		echo "POST ".$uri."\n";
+		$uri = "https://" . $this->get_hostname( $token ) . "/sf/v3/Users";
+		// echo "POST ".$uri."\n";
  
 		$client = array("Email"=>$email, "FirstName"=>$firstname, "LastName"=>$lastname, "Company"=>$company,
 				"Password"=>$clientpassword, 
 				"Preferences"=>array("CanResetPassword"=>$canresetpassword, "CanViewMySettings"=>$canviewmysettings));
 		$data = json_encode($client);
  
-		$headers = get_authorization_header($token);
+		$headers = $this->get_authorization_header($token);
 		$headers["Content-Type"] = "application/json";
 		 
 		$ch = curl_init();
@@ -603,15 +582,15 @@ class ShareFile {
 		$curl_error_number = curl_errno($ch);
 		$curl_error = curl_error($ch);
  
-		//echo $curl_response."\n"; // output entire response
-		echo "http_code = ".$http_code."\n"; // output http status code
+		// echo $curl_response."\n"; // output entire response
+		// echo "http_code = ".$http_code."\n"; // output http status code
  
 		curl_close ($ch);
  
 		if ($http_code == 200) {
 			$client = json_decode($curl_response);
-			print_r($client); // print entire new item object
-			echo "Created Client: ".$client->Id."\n";
+			// print_r($client); // print entire new item object
+			// echo "Created Client: ".$client->Id."\n";
 		}
 	}
 }
