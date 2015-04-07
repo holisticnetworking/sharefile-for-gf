@@ -121,7 +121,7 @@ if (class_exists("GFForms")) {
 							"name"    => "password",
 							"tooltip" => __("The password associated with this account", "gravityformsaggregator"),
 							"label"   => __("Password", "gravityformsaggregator"),
-							"type"    => "password"
+							"type"    => "text"
 						),
 						array(
 							"name"    => "folder-id",
