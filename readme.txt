@@ -23,3 +23,7 @@ Simply go to Plugins > Add New and search for ShareFile for Gravity Forms. Insta
 ==FAQ==
 _Does this plugin allow for downloading?_
 No. This plugin assumes you need secure upload abilities, file downloads must be handled separately.
+_What permissions should I give the uploading user account?_
+Security is different for everyone. Still, especially if you're using ShareFile for it's HIPPA compliance, the rights given to the user account you use for uploading through this plugin should be limited.
+
+Consider creating a "drop box" account, which only has rights to upload to a specific directory, without the ability to either create new directories, nor to download files. This ensures that any potential breach of WordPress doesn't allow a hacker to download sensitive information.
