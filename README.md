@@ -27,6 +27,7 @@ FAQ
 ===
 **Does this plugin allow for downloading?**  
 No. This plugin assumes you need secure upload abilities, file downloads must be handled separately.
+
 **What permissions should I give the uploading user account?**  
 Security is different for everyone. Still, especially if you're using ShareFile for it's HIPPA compliance, the rights given to the user account you use for uploading through this plugin should be limited.
 
