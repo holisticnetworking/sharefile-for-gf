@@ -22,3 +22,8 @@ You _must_ have Gravity Forms installed on your site in order for this plugin to
 Installation
 ============
 Simply go to Plugins > Add New and search for ShareFile for Gravity Forms. Install the plugin and head over to Gravity Forms > Settings > ShareFile Settings. You'll need to get your ShareFile API key, including the Client ID and Secret, in order to proceed.
+
+FAQ
+===
+**Does this plugin allow for downloading?**  
+No. This plugin assumes you need secure upload abilities, file downloads must be handled separately.
